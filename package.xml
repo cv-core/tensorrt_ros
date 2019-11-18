@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>tensorrt_ros</name>
+    <version>1.0.0</version>
+    <description>TensorRT for ROS</description>
+    <maintainer email="raphc@mit.edu">Raphael Chang</maintainer>
+    <license>BSD</license>
+    <author email="raphc@mit.edu">Raphael Chang</author>
+
+    <buildtool_depend>catkin</buildtool_depend>
+    <depend>roscpp</depend>
+    <depend>roslib</depend>
+    <depend>std_msgs</depend>
+    <depend>image_transport</depend>
+    <depend>cv_bridge</depend>
+    <depend>sensor_msgs</depend>
+    <depend>geometry_msgs</depend>
+    <depend>message_generation</depend>
+    <depend>message_runtime</depend>
+</package>
+
