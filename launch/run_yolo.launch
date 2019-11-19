@@ -6,8 +6,6 @@
     <param name="calib_path" value="launch/calib_imgs" />
     <param name="onnx_path" value="yolo_config/yolo/yolo_800320_kmeans_no_leaky.onnx" />
     <param name="trt_path" value="yolo_config/yolo/yolo_800320_kmeans_no_leaky_fp16.trt" />
-    <param name="color_onnx_path" value="yolo_config/BTLNet/BTLNet_8060_4class_hive01_planted.onnx" />
-    <param name="color_trt_path" value="yolo_config/BTLNet/BTLNet_8060_4class_hive01_planted_fp16.trt" />
     <param name="keypoints_onnx_path" value="yolo_config/keypoints/keypoints_paper_spec_seed17.onnx" />
     <param name="keypoints_trt_path" value="yolo_config/keypoints/keypoints_paper_spec_seed17_fp16.trt" />
     <param name="camera1_topic" value="$(arg camera1_topic)" />
@@ -19,8 +17,6 @@
         yolo_classes: 80
         yolo_detection_threshold: 0.5
         yolo_nms_threshold: 0.01
-        color_width: 60
-        color_height: 80
         keypoints_width: 80
         keypoints_height: 80
         max_boxes: 100

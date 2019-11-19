@@ -12,8 +12,6 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     string onnxFile;
     string trtFile;
     string calibFile;
-    string colorOnnxFile;
-    string colorTrtFile;
     string keypointsOnnxFile;
     string keypointsTrtFile;
     string detectionsTopic1;
@@ -26,8 +24,6 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     int yoloClasses;
     double yoloThresh;
     double yoloNms;
-    int colorW;
-    int colorH;
     int keypointsW;
     int keypointsH;
     int maxBatch;
@@ -36,8 +32,6 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     nh_private_.param("onnx_path", onnxFile, string("yolov3.onnx"));
     nh_private_.param("trt_path", trtFile, string("yolov3.trt"));
     nh_private_.param("calib_path", calibFile, string("yolo.txt"));
-    nh_private_.param("color_onnx_path", colorOnnxFile, string("color.onnx"));
-    nh_private_.param("color_trt_path", colorTrtFile, string("color.trt"));
     nh_private_.param("keypoints_onnx_path", keypointsOnnxFile, string("keypoints.onnx"));
     nh_private_.param("keypoints_trt_path", keypointsTrtFile, string("keypoints.trt"));
     nh_private_.param("camera1_topic", camera1Topic, string("/camera1/image_raw"));
@@ -52,8 +46,6 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     nh_private_.param("yolo_classes", yoloClasses, 80);
     nh_private_.param("yolo_detection_threshold", yoloThresh, 0.998);
     nh_private_.param("yolo_nms_threshold", yoloNms, 0.25);
-    nh_private_.param("color_width", colorW, 28);
-    nh_private_.param("color_height", colorH, 28);
     nh_private_.param("keypoints_width", keypointsW, 96);
     nh_private_.param("keypoints_height", keypointsH, 96);
     nh_private_.param("max_boxes", maxBatch, 100);
@@ -71,7 +63,6 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     boundingBoxesPublisher2_ = nh_.advertise<tensorrt_ros::BoundingBoxes>(detectionsTopic2, 2, false);
     detectionImagePublisher2_ = imageTransport_.advertise(detectionImageTopic2, 2);
     detector_.reset(new Detector(ros::package::getPath("tensorrt_ros") + "/" +  onnxFile, ros::package::getPath("tensorrt_ros") + "/" + trtFile, ros::package::getPath("tensorrt_ros") + "/" + calibFile, yoloW, yoloH, yoloClasses, yoloThresh, yoloNms, useInt8));
-    colorDetector_.reset(new ColorDetector(ros::package::getPath("tensorrt_ros") + "/" +  colorOnnxFile, ros::package::getPath("tensorrt_ros") + "/" + colorTrtFile, colorW, colorH, maxBatch));
     keypointDetector_.reset(new KeypointDetector(ros::package::getPath("tensorrt_ros") + "/" +  keypointsOnnxFile, ros::package::getPath("tensorrt_ros") + "/" + keypointsTrtFile, keypointsW, keypointsH, maxBatch));
 #ifdef TRACKING
     tracker1_.reset(new Tracker());
@@ -323,29 +314,6 @@ tensorrt_ros::BoundingBoxes TensorRTNode::processDetections(vector<Detection> &d
         boundingBox.Class = "cone";
         boxes.bounding_boxes.push_back(boundingBox);
     }
-    vector<int> colors = colorDetector_->doInference(rois);
-    for (unsigned int i = 0; i < boxes.bounding_boxes.size(); i++)
-    {
-        boxes.bounding_boxes[i].Color = "unknown";
-        int color = colors[i];
-        if (color == 0)
-        {
-            boxes.bounding_boxes[i].Color = "orange";
-        }
-        else if (color == 1)
-        {
-            boxes.bounding_boxes[i].Color = "orange";
-            boxes.bounding_boxes[i].Class = "big_cone";
-        }
-        else if (color == 2)
-        {
-            boxes.bounding_boxes[i].Color = "blue";
-        }
-        else if (color == 3)
-        {
-            boxes.bounding_boxes[i].Color = "yellow";
-        }
-    }
     if (isCamera1)
     {
         vector<vector<cv::Point2f>> keypoints = keypointDetector_->doInference(rois);
@@ -378,26 +346,9 @@ void TensorRTNode::drawDetections(cv::Mat &img, tensorrt_ros::BoundingBoxes &box
 	{
 	    cv::circle(img, cv::Point2f(pt.x, pt.y), 1, cv::Scalar(0, 255, 0), -1, 8);
 	}
-        if (b.Color == "orange")
-        {
-            cv::Scalar boxColor(0, 128, 255);
-            cv::rectangle(img, box, boxColor,2,8,0);
-        }
-        else if (b.Color == "orange_large")
-        {
-            cv::Scalar boxColor(0, 0, 255);
-            cv::rectangle(img, box, boxColor,2,8,0);
-        }
-        else if (b.Color == "yellow")
-        {
-            cv::Scalar boxColor(0, 255, 255);
-            cv::rectangle(img, box, boxColor,2,8,0);
-        }
-        else if (b.Color == "blue")
-        {
-            cv::Scalar boxColor(255, 0, 0);
-            cv::rectangle(img, box, boxColor,2,8,0);
-        }
+	// Make bounding box color blue by default
+        cv::Scalar boxColor(255, 0, 0);
+	cv::rectangle(img, box, boxColor,2,8,0);
     }
 }
 

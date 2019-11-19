@@ -13,7 +13,6 @@
 #include <sensor_msgs/image_encodings.h>
 
 #include "Detector.h"
-#include "ColorDetector.h"
 #include "KeypointDetector.h"
 #include "Tracker.h"
 
@@ -57,7 +56,6 @@ private:
     image_transport::Publisher detectionImagePublisher2_;
 
     std::unique_ptr<Detector> detector_;
-    std::unique_ptr<ColorDetector> colorDetector_;
     std::unique_ptr<KeypointDetector> keypointDetector_;
     std::unique_ptr<Tracker> tracker1_;
     std::unique_ptr<Tracker> tracker2_;
