@@ -99,7 +99,7 @@ vector<int> ColorDetector::doInference(vector<cv::Mat>& imgs)
 
     auto t_end = std::chrono::high_resolution_clock::now();
     auto total = std::chrono::duration<float, std::milli>(t_end - t_start).count();
-//    std::cout << "Time taken for color is " << total << " ms." << std::endl;
+    std::cout << "Time taken for color is " << total << " ms." << std::endl;
 
     output = outputData_.get();
     vector<int> results(batchSize);

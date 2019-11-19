@@ -2,13 +2,14 @@
   <arg name="camera1_topic" default="/pointgrey/image_rect_color_scaled" />
   <arg name="camera2_topic" default="/nerian/left_image" />
   <arg name="car" default="dut18d" />
-  <node pkg="tensorrt_ros" type="tensorrt_ros" name="tensorrt_node" output="screen">
-    <param name="onnx_path" value="yolo_config/onnx/yolo_full_800320_leaky_80class_10x_2_full0123.onnx" />
-    <param name="trt_path" value="yolo_config/trt/yolo_full_800320_leaky_fp16_10x_2_full0123.trt" />
-    <param name="color_onnx_path" value="yolo_config/BTLnet/BTLnet_bn_2828.onnx" />
-    <param name="color_trt_path" value="yolo_config/BTLnet/BTLnet_bn_2828.trt" />
-    <param name="keypoints_onnx_path" value="yolo_config/keypoints/keypoints_8080.onnx" />
-    <param name="keypoints_trt_path" value="yolo_config/keypoints/keypoints_8080.trt" />
+  <node pkg="tensorrt_ros" type="tensorrt_ros" name="tensorrt_node" output="screen" >
+    <param name="calib_path" value="launch/calib_imgs" />
+    <param name="onnx_path" value="yolo_config/yolo/yolo_800320_kmeans_no_leaky.onnx" />
+    <param name="trt_path" value="yolo_config/yolo/yolo_800320_kmeans_no_leaky_fp16.trt" />
+    <param name="color_onnx_path" value="yolo_config/BTLNet/BTLNet_8060_4class_hive01_planted.onnx" />
+    <param name="color_trt_path" value="yolo_config/BTLNet/BTLNet_8060_4class_hive01_planted_fp16.trt" />
+    <param name="keypoints_onnx_path" value="yolo_config/keypoints/keypoints_paper_spec_seed17.onnx" />
+    <param name="keypoints_trt_path" value="yolo_config/keypoints/keypoints_paper_spec_seed17_fp16.trt" />
     <param name="camera1_topic" value="$(arg camera1_topic)" />
     <param name="camera2_topic" value="$(arg camera2_topic)" />
     <param name="car_type" value="$(arg car)" />
@@ -16,14 +17,15 @@
         yolo_width: 800
         yolo_height: 320
         yolo_classes: 80
-        yolo_detection_threshold: 0.995
-        yolo_nms_threshold: 0.25
-        color_width: 28
-        color_height: 28
+        yolo_detection_threshold: 0.5
+        yolo_nms_threshold: 0.01
+        color_width: 60
+        color_height: 80
         keypoints_width: 80
         keypoints_height: 80
         max_boxes: 100
         box_min_size_ratio: 0.012
+        use_int8: false 
     </rosparam>
   </node>
 </launch>

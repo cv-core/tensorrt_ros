@@ -13,11 +13,12 @@
 #include <time.h>
 #include <opencv2/opencv.hpp>
 #include <chrono>
+#include <dirent.h>
 
 using namespace std;
 using namespace nvinfer1;
 
-Detector::Detector(string onnxFile, string trtFile, int input_w, int input_h, int num_classes, float yolo_thresh, float nms_thresh)
+Detector::Detector(string onnxFile, string trtFile, string calibFileList, int input_w, int input_h, int num_classes, float yolo_thresh, float nms_thresh, bool use_int8)
     : logger_(Logger::Severity::kINFO),
       profiler_("Layer times"),
       inputW_(input_w),
@@ -28,25 +29,83 @@ Detector::Detector(string onnxFile, string trtFile, int input_w, int input_h, in
       yolo1_({
               input_w / 32,
               input_h / 32,
-              {116,90,  156,198,  373,326}
+              {108,84,  152,108,  225,148}
               }),
 
       yolo2_({
               input_w / 16,
               input_h / 16,
-              {30,61,  62,45,  59,119}
+              {47,36,  63,49,  82,65}
               }),
       yolo3_({
               input_w / 8,
               input_h / 8,
-              {10,13,  16,30,  33,23}
+              {13,12,  22,18,  33,26}
               })
 {
     runtime_ = createInferRuntime(logger_);
     assert(runtime_ != nullptr);
     runtime_->setDLACore(0);
 
-    engine_ = engineFromFiles(onnxFile, trtFile, runtime_, BATCH_SIZE, logger_, false);
+    Int8EntropyCalibrator * calibrator = nullptr;
+    if (use_int8){
+        vector<vector<float>> calibratorData;
+        fstream file;
+        file.open(trtFile, ios::binary | ios::in);
+        if (!file.is_open())
+        {
+	    size_t lastindex = onnxFile.find_last_of("."); 
+	    string rawname = onnxFile.substr(0, lastindex) + ".calib";
+	    fstream calibFile;
+            calibFile.open(rawname, ios::binary | ios::in);
+	    bool fileExists = false;
+	    if(calibFileList.length() > 0 && !calibFile.is_open())
+	    {
+		    DIR *dir;
+		    struct dirent *ent;
+		    if ((dir = opendir(calibFileList.c_str())) != NULL) {
+			    if (calibFileList.back() !='/'){
+				    calibFileList += "/";
+			    }
+			    while ((ent = readdir (dir)) != NULL) {
+				    if (ent->d_type == DT_DIR){
+				        continue;
+				    }
+				    cout << calibFileList + ent->d_name << endl;
+				    cv::Mat img = cv::imread(calibFileList + ent->d_name);
+				    vector<float> data(inputW_ * inputH_ * INPUT_CHANNEL);  
+				    prepareImage(img, data.data(), inputW_, inputH_, INPUT_CHANNEL);
+				    calibratorData.emplace_back(data);
+			    }
+			    closedir (dir);
+		    } else {
+			    cout << "Calibration image directory does not exist, please check: " << calibFileList << endl;
+			    exit(-1);
+		    }
+	    }
+	    else if (calibFile.is_open()){
+		fileExists = true;
+		calibFile.close();
+	    }
+	    else {
+		cout << "No calibration image directory specified" << endl;
+		exit(-1);
+	    }
+	    
+	    if (fileExists || calibratorData.size() > 0){
+                cout << "Creating calibrator with " << calibratorData.size() << " images" << endl;
+		calibrator = new Int8EntropyCalibrator(BATCH_SIZE, calibratorData, rawname);
+	    }
+	}
+        else if (file.is_open()){
+            file.close();
+        }
+    }
+    engine_ = engineFromFiles(onnxFile, trtFile, runtime_, BATCH_SIZE, logger_, use_int8, false, calibrator);
+    if(calibrator){
+	    delete calibrator;
+	    calibrator = nullptr;
+    }
     context_ = engine_->createExecutionContext();
 #ifdef PROFILE
     context_->setProfiler(&profiler_);
@@ -312,7 +371,7 @@ vector<vector<Detection>> Detector::doInference(vector<cv::Mat>& imgs)
 
     t_end = std::chrono::high_resolution_clock::now();
     total = std::chrono::duration<float, std::milli>(t_end - t_start).count();
-    // std::cout << "Time taken for inference is " << total << " ms." << std::endl;
+    std::cout << "Time taken for inference is " << total << " ms." << std::endl;
 
     vector<vector<Detection>> results = interpretOutputTensor(outputData_.get(), batchSize);
     for (int i = 0; i < batchSize; i++)

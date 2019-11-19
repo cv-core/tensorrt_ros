@@ -73,7 +73,7 @@ set(BUILD_DEPS "YES" CACHE BOOL "If YES, will install dependencies into sandbox.
 
 list(APPEND CUDA_NVCC_FLAGS "-D_FORCE_INLINES -Xcompiler -fPIC")
 CUDA_INCLUDE_DIRECTORIES(${CUDNN_INCLUDE_DIR} ${TENSORRT_INCLUDE_DIR})
-CUDA_ADD_EXECUTABLE(${PROJECT_NAME} Detector.cpp ColorDetector.cpp KeypointDetector.cpp Tracker.cpp main.cpp TensorRTNode.cpp Utils.cpp)
+CUDA_ADD_EXECUTABLE(${PROJECT_NAME} Detector.cpp ColorDetector.cpp KeypointDetector.cpp Tracker.cpp main.cpp TensorRTNode.cpp Utils.cpp EntropyCalibrator.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CUDA_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${TENSORRT_LIBRARY} ${OpenCV_LIBS} nvonnxparser ${catkin_LIBRARIES})

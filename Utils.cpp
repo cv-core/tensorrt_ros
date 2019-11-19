@@ -147,7 +147,7 @@ void setDynamicRange(nvinfer1::INetworkDefinition*& network)
 
 void onnxToTRTModel(const std::string& modelFile,
                     unsigned int maxBatchSize,
-                    IHostMemory*& trtModelStream, Logger &logger, bool useInt8, bool markOutput)
+                    IHostMemory*& trtModelStream, Logger &logger, bool useInt8, bool markOutput, IInt8EntropyCalibrator* calibrator)
 {
     IBuilder* builder = createInferBuilder(logger);
     nvinfer1::INetworkDefinition* network = builder->createNetwork();
@@ -175,9 +175,10 @@ void onnxToTRTModel(const std::string& modelFile,
     if (useInt8 && builder->platformHasFastInt8())
     {
       builder->setInt8Mode(true);
-      builder->setInt8Calibrator(nullptr);
-      setLayerPrecision(network);
-      setDynamicRange(network);
+      builder->setInt8Calibrator(calibrator);
+      
+      //setLayerPrecision(network);
+      //setDynamicRange(network);
     }
     else
     {
@@ -200,7 +201,7 @@ void onnxToTRTModel(const std::string& modelFile,
     builder->destroy();
 }
 
-ICudaEngine* engineFromFiles(string onnxFile, string trtFile, IRuntime *runtime, int batchSize, Logger &logger, bool useInt8, bool markOutput)
+ICudaEngine* engineFromFiles(string onnxFile, string trtFile, IRuntime *runtime, int batchSize, Logger &logger, bool useInt8, bool markOutput, IInt8EntropyCalibrator* calibrator)
 {
     ICudaEngine *engine;
     fstream file;
@@ -208,7 +209,7 @@ ICudaEngine* engineFromFiles(string onnxFile, string trtFile, IRuntime *runtime,
     if(!file.is_open())
     {
         IHostMemory* trtModelStream{nullptr};
-        onnxToTRTModel(onnxFile, batchSize, trtModelStream, logger, useInt8, markOutput);
+        onnxToTRTModel(onnxFile, batchSize, trtModelStream, logger, useInt8, markOutput, calibrator);
         assert(trtModelStream != nullptr);
 
         engine = runtime->deserializeCudaEngine(trtModelStream->data(), trtModelStream->size(), nullptr);

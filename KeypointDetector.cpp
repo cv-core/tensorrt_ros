@@ -85,26 +85,44 @@ vector<cv::Point2f> KeypointDetector::interpretOutputTensor(float *tensor, int w
     vector<cv::Point2f> kpt(NUM_KEYPOINTS);
     for (int i = 0; i < NUM_KEYPOINTS; i++)
     {
-        int largest = distance(tensor, max_element(tensor, tensor + size));
-        //tensor[largest] = 0;
-        //int second = distance(tensor, max_element(tensor, tensor + size));
-        kpt[i] = cv::Point2f((largest % inputW_) * scaleX, (largest / inputW_) * scaleY);//cv::Point2f((3 * (largest % (inputW_ / KEYPOINT_SCALE)) + second % (inputW_ / KEYPOINT_SCALE)) / 4. * scale, (3 * (largest / (inputW_ / KEYPOINT_SCALE)) + second / (inputW_ / KEYPOINT_SCALE)) / 4. * scale);
+        float max_elem = *std::max_element(tensor, tensor + size);
+        std::transform(tensor, tensor + size, tensor, [&](float x){ return std::exp(x - max_elem); });
+        float sum = std::accumulate(tensor, tensor + size, 0.0);
+        std::transform(tensor, tensor + size, tensor, std::bind2nd(std::divides<float>(), sum));
         cv::Mat outImg(inputW_, inputH_, CV_32FC1);
-        memcpy(outImg.data, tensor, sizeof(float) * inputW_ * inputH_);
-        cv::Mat normImg(inputW_, inputH_, CV_8UC1);
-	outImg *= 255 / tensor[largest];
-        outImg.convertTo(normImg, CV_8UC1);
+        memcpy(outImg.data, tensor, sizeof(float) * size);
+        cv::Mat xs(inputH_ / KEYPOINT_SCALE, inputW_ / KEYPOINT_SCALE, CV_32FC1);
+        cv::Mat ys(inputH_ / KEYPOINT_SCALE, inputW_ / KEYPOINT_SCALE, CV_32FC1);
+        for (int j = 0; j < inputW_ / KEYPOINT_SCALE; j++)
+        {
+            xs.col(j).setTo(j);
+        }
+        for (int j = 0; j < inputH_ / KEYPOINT_SCALE; j++)
+        {
+            ys.row(j).setTo(j);
+        }
+        float x = cv::sum(xs.mul(outImg))[0];
+        float y = cv::sum(ys.mul(outImg))[0];
+        kpt[i] = cv::Point2f(x * scaleX, y * scaleY);
+        //int largest = distance(tensor, max_element(tensor, tensor + size));
+        //int smallest = distance(tensor, min_element(tensor, tensor + size));
+        //int second = distance(tensor, max_element(tensor, tensor + size));
+        //kpt[i] = cv::Point2f((largest % inputW_) * scaleX, (largest / inputW_) * scaleY);//cv::Point2f((3 * (largest % (inputW_ / KEYPOINT_SCALE)) + second % (inputW_ / KEYPOINT_SCALE)) / 4. * scale, (3 * (largest / (inputW_ / KEYPOINT_SCALE)) + second / (inputW_ / KEYPOINT_SCALE)) / 4. * scale);
+        //cv::Mat normImg(inputW_, inputH_, CV_8UC1);
+        //outImg -= tensor[smallest];
+	//outImg *= 255 / (tensor[largest] - tensor[smallest]);
+        //outImg.convertTo(normImg, CV_8UC1);
         //cv::imshow("kpt", normImg);
         //cv::waitKey(0);
-	cv::threshold(normImg, normImg, 32, 0, cv::THRESH_TOZERO);
-	cv::GaussianBlur(normImg, normImg, cv::Size(5, 5), 0, 0);
-	cv::Mat mask;
-	cv::dilate(normImg, mask, cv::Mat());
-	cv::compare(normImg, mask, mask, cv::CMP_GE);
-        cv::Mat non_plateau_mask;
-        cv::erode(normImg, non_plateau_mask, cv::Mat());
-        cv::compare(normImg, non_plateau_mask, non_plateau_mask, cv::CMP_GT);
-        cv::bitwise_and(mask, non_plateau_mask, mask);
+	//cv::threshold(normImg, normImg, 32, 0, cv::THRESH_TOZERO);
+	//cv::GaussianBlur(normImg, normImg, cv::Size(5, 5), 0, 0);
+	//cv::Mat mask;
+	//cv::dilate(normImg, mask, cv::Mat());
+	//cv::compare(normImg, mask, mask, cv::CMP_GE);
+        //cv::Mat non_plateau_mask;
+        //cv::erode(normImg, non_plateau_mask, cv::Mat());
+        //cv::compare(normImg, non_plateau_mask, non_plateau_mask, cv::CMP_GT);
+        //cv::bitwise_and(mask, non_plateau_mask, mask);
 
         //cv::imshow("kpt", mask);
         //cv::waitKey(0);
@@ -120,16 +138,6 @@ vector<vector<cv::Point2f>> KeypointDetector::doInference(vector<cv::Mat>& imgs)
     for(auto &img : imgs)
     {
         prepareImage(img, input, inputW_, inputH_, KEYPOINTS_CHANNEL, false, false, false);
-	//for (int c = 0; c < 3; c++)
-	//{
-        //cv::Mat outImg(inputW_, inputH_, CV_32FC1);
-        //memcpy(outImg.data, input + c * inputW_ * inputH_, sizeof(float) * inputW_ * inputH_);
-        //cv::Mat normImg(inputW_, inputH_, CV_8UC1);
-	//outImg *= 255;
-        //outImg.convertTo(normImg, CV_8UC1);
-        //cv::imshow("kpt", normImg);
-        //cv::waitKey(0);
-	//}
         input += inputW_ * inputH_ * KEYPOINTS_CHANNEL;
     }
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -160,7 +168,7 @@ vector<vector<cv::Point2f>> KeypointDetector::doInference(vector<cv::Mat>& imgs)
 
     auto t_end = std::chrono::high_resolution_clock::now();
     auto total = std::chrono::duration<float, std::milli>(t_end - t_start).count();
-//    std::cout << "Time taken for keypoints is " << total << " ms." << std::endl;
+    std::cout << "Time taken for keypoints is " << total << " ms." << std::endl;
 
     output = outputData_.get();
     vector<vector<cv::Point2f>> results(batchSize);

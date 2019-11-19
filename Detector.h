@@ -8,6 +8,7 @@
 #include "NvOnnxParser.h"
 
 #include "Utils.h"
+#include "EntropyCalibrator.h"
 
 //#define PROFILE
 
@@ -31,7 +32,7 @@ struct Detection{
 class Detector
 {
 public:
-    Detector(std::string onnxFile, std::string trtFile, int input_w, int input_h, int num_classes, float yolo_thresh, float nms_thresh);
+    Detector(std::string onnxFile, std::string trtFile, std::string calibFileList, int input_w, int input_h, int num_classes, float yolo_thresh, float nms_thresh, bool use_int8);
     ~Detector();
     std::vector<std::vector<Detection>> doInference(std::vector<cv::Mat>& imgs);
 private:

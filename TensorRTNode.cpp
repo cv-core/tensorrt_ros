@@ -11,6 +11,7 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
 {
     string onnxFile;
     string trtFile;
+    string calibFile;
     string colorOnnxFile;
     string colorTrtFile;
     string keypointsOnnxFile;
@@ -19,6 +20,7 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     string detectionImageTopic1;
     string detectionsTopic2;
     string detectionImageTopic2;
+    bool useInt8;
     int yoloW;
     int yoloH;
     int yoloClasses;
@@ -33,6 +35,7 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
 
     nh_private_.param("onnx_path", onnxFile, string("yolov3.onnx"));
     nh_private_.param("trt_path", trtFile, string("yolov3.trt"));
+    nh_private_.param("calib_path", calibFile, string("yolo.txt"));
     nh_private_.param("color_onnx_path", colorOnnxFile, string("color.onnx"));
     nh_private_.param("color_trt_path", colorTrtFile, string("color.trt"));
     nh_private_.param("keypoints_onnx_path", keypointsOnnxFile, string("keypoints.onnx"));
@@ -56,6 +59,7 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     nh_private_.param("max_boxes", maxBatch, 100);
     nh_private_.param("box_min_size_ratio", boxMinSizeRatio_, 0.012);
     nh_private_.param("car_type", carType_, string("dut18d"));
+    nh_private_.param("use_int8", useInt8, false);
 
     imageSubscriber1_.subscribe(imageTransport_, camera1Topic, 3);
     imageSubscriber2_.subscribe(imageTransport_, camera2Topic, 3);
@@ -66,7 +70,7 @@ TensorRTNode::TensorRTNode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_
     detectionImagePublisher1_ = imageTransport_.advertise(detectionImageTopic1, 2);
     boundingBoxesPublisher2_ = nh_.advertise<tensorrt_ros::BoundingBoxes>(detectionsTopic2, 2, false);
     detectionImagePublisher2_ = imageTransport_.advertise(detectionImageTopic2, 2);
-    detector_.reset(new Detector(ros::package::getPath("tensorrt_ros") + "/" +  onnxFile, ros::package::getPath("tensorrt_ros") + "/" + trtFile, yoloW, yoloH, yoloClasses, yoloThresh, yoloNms));
+    detector_.reset(new Detector(ros::package::getPath("tensorrt_ros") + "/" +  onnxFile, ros::package::getPath("tensorrt_ros") + "/" + trtFile, ros::package::getPath("tensorrt_ros") + "/" + calibFile, yoloW, yoloH, yoloClasses, yoloThresh, yoloNms, useInt8));
     colorDetector_.reset(new ColorDetector(ros::package::getPath("tensorrt_ros") + "/" +  colorOnnxFile, ros::package::getPath("tensorrt_ros") + "/" + colorTrtFile, colorW, colorH, maxBatch));
     keypointDetector_.reset(new KeypointDetector(ros::package::getPath("tensorrt_ros") + "/" +  keypointsOnnxFile, ros::package::getPath("tensorrt_ros") + "/" + keypointsTrtFile, keypointsW, keypointsH, maxBatch));
 #ifdef TRACKING
@@ -107,18 +111,20 @@ void TensorRTNode::cameraCallback(const sensor_msgs::ImageConstPtr& msg1, const 
     }
 #ifndef TRACKING
     images_to_detect_.clear();
-    images_to_detect_.push_back(cam_image1->image.clone());
+    cv::Mat cam_image1_half;
+    cv::resize(cam_image1->image, cam_image1_half, cv::Size(), 0.5, 0.5);
+    images_to_detect_.push_back(cam_image1_half);
     images_to_detect_.push_back(cam_image2->image.clone());
     vector<vector<Detection>> detect_results_ = detector_->doInference(images_to_detect_);
-    tensorrt_ros::BoundingBoxes boxes1 = processDetections(detect_results_[0], images_to_detect_[0], true);
     tensorrt_ros::BoundingBoxes boxes2 = processDetections(detect_results_[1], images_to_detect_[1], false);
-    boxes1.header = msg1->header;
     boxes2.header = msg2->header;
+    boundingBoxesPublisher2_.publish(boxes2);
+    tensorrt_ros::BoundingBoxes boxes1 = processDetections(detect_results_[0], cam_image1->image, true);
+    boxes1.header = msg1->header;
+    boundingBoxesPublisher1_.publish(boxes1);
     drawDetections(cam_image1->image, boxes1);
     drawDetections(cam_image2->image, boxes2);
-    boundingBoxesPublisher1_.publish(boxes1);
     detectionImagePublisher1_.publish(cam_image1->toImageMsg());
-    boundingBoxesPublisher2_.publish(boxes2);
     detectionImagePublisher2_.publish(cam_image2->toImageMsg());
 #else
     //vector<tensorrt_ros::BoundingBoxes> results;
@@ -208,7 +214,6 @@ void TensorRTNode::cameraCallback(const sensor_msgs::ImageConstPtr& msg1, const 
         auto t_end = chrono::high_resolution_clock::now();
         float total = chrono::duration<float, milli>(t_end - t_start).count();
         ROS_DEBUG("Time taken for tracking is  %f ms.\n", total);
-        // cout << "Time taken for tracking is " << total << " ms." << endl;
     }
 #endif
 }
@@ -273,11 +278,13 @@ tensorrt_ros::BoundingBoxes TensorRTNode::processDetections(vector<Detection> &d
         int right = min((b[0]+b[2]/2.)*img.cols, double(img.cols));
         int top   = max((b[1]-b[3]/2.)*img.rows, 0.0);
         int bot   = min((b[1]+b[3]/2.)*img.rows, double(img.rows));
-
-        left = max(left - 2, 0);
-        top = max(top - 2, 0);
-        right = min(right + 2, img.cols);
-        bot = min(bot + 2, img.rows);
+	int h = bot - top;
+	int w = right - left;
+	double adder = 0.0;
+	left = max((int)(left - adder * w), 0);
+        top = max((int)(top - adder * h), 0);
+        right = min((int)(right + adder * w), img.cols);
+        bot = min((int)(bot + adder * h), img.rows);
 
         if (right - left <= img.cols * boxMinSizeRatio_ || bot - top <= img.rows * boxMinSizeRatio_)
             continue;
@@ -339,22 +346,25 @@ tensorrt_ros::BoundingBoxes TensorRTNode::processDetections(vector<Detection> &d
             boxes.bounding_boxes[i].Color = "yellow";
         }
     }
-    vector<vector<cv::Point2f>> keypoints = keypointDetector_->doInference(rois);
-    for (unsigned int i = 0; i < boxes.bounding_boxes.size(); i++)
+    if (isCamera1)
     {
-	//cv::Mat gray;
-	//cv::cvtColor(rois[i], gray, cv::COLOR_BGR2GRAY);
-	//cv::cornerSubPix(gray, keypoints[i], cv::Size(3, 3), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER, 40, 0.001));
-
-        for (cv::Point2f pt : keypoints[i])
+        vector<vector<cv::Point2f>> keypoints = keypointDetector_->doInference(rois);
+        for (unsigned int i = 0; i < boxes.bounding_boxes.size(); i++)
         {
-            geometry_msgs::Point point;
-            point.x = boxes.bounding_boxes[i].xmin + pt.x;
-            point.y = boxes.bounding_boxes[i].ymin + pt.y;
-            point.z = 0;
-            boxes.bounding_boxes[i].keypoints.push_back(point);
+            //cv::Mat gray;
+            //cv::cvtColor(rois[i], gray, cv::COLOR_BGR2GRAY);
+            //cv::cornerSubPix(gray, keypoints[i], cv::Size(3, 3), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER, 40, 0.001));
+
+            for (cv::Point2f pt : keypoints[i])
+            {
+                geometry_msgs::Point point;
+                point.x = boxes.bounding_boxes[i].xmin + pt.x;
+                point.y = boxes.bounding_boxes[i].ymin + pt.y;
+                point.z = 0;
+                boxes.bounding_boxes[i].keypoints.push_back(point);
+            }
+            //boxes.bounding_boxes[i].keypoints.erase(boxes.bounding_boxes[i].keypoints.begin() + 5, boxes.bounding_boxes[i].keypoints.end());
         }
-	//boxes.bounding_boxes[i].keypoints.erase(boxes.bounding_boxes[i].keypoints.begin() + 5, boxes.bounding_boxes[i].keypoints.end());
     }
     return boxes;
 }
@@ -366,27 +376,27 @@ void TensorRTNode::drawDetections(cv::Mat &img, tensorrt_ros::BoundingBoxes &box
         cv::Rect box(cv::Point(b.xmin,b.ymin), cv::Point(b.xmax,b.ymax));
 	for (auto &pt : b.keypoints)
 	{
-            cv::circle(img, cv::Point2f(pt.x, pt.y), 1, cv::Scalar(0, 255, 0), -1, 8);
+	    cv::circle(img, cv::Point2f(pt.x, pt.y), 1, cv::Scalar(0, 255, 0), -1, 8);
 	}
         if (b.Color == "orange")
         {
             cv::Scalar boxColor(0, 128, 255);
-            cv::rectangle(img, box, boxColor,1,8,0);
+            cv::rectangle(img, box, boxColor,2,8,0);
         }
         else if (b.Color == "orange_large")
         {
             cv::Scalar boxColor(0, 0, 255);
-            cv::rectangle(img, box, boxColor,1,8,0);
+            cv::rectangle(img, box, boxColor,2,8,0);
         }
         else if (b.Color == "yellow")
         {
             cv::Scalar boxColor(0, 255, 255);
-            cv::rectangle(img, box, boxColor,1,8,0);
+            cv::rectangle(img, box, boxColor,2,8,0);
         }
         else if (b.Color == "blue")
         {
             cv::Scalar boxColor(255, 0, 0);
-            cv::rectangle(img, box, boxColor,1,8,0);
+            cv::rectangle(img, box, boxColor,2,8,0);
         }
     }
 }

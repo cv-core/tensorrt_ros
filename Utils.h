@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NvInfer.h"
+#include "EntropyCalibrator.h"
 #include <iostream>
 #include <vector>
 #include <map>
@@ -138,10 +139,10 @@ void setDynamicRange(nvinfer1::INetworkDefinition*& network);
 
 void onnxToTRTModel(const std::string& modelFile,
                     unsigned int maxBatchSize,
-                    nvinfer1::IHostMemory*& trtModelStream, Logger &logger, bool useInt8 = false, bool markOutput = false);
+                    nvinfer1::IHostMemory*& trtModelStream, Logger &logger, bool useInt8 = true, bool markOutput = false, nvinfer1::IInt8EntropyCalibrator* calibrator = nullptr);
 
 nvinfer1::ICudaEngine* engineFromFiles(std::string onnxFile, std::string trtFile, nvinfer1::IRuntime *runtime,
-                                       int batchSize, Logger &logger, bool useInt8 = false, bool markOutput = false);
+                                       int batchSize, Logger &logger, bool useInt8 = true, bool markOutput = false, nvinfer1::IInt8EntropyCalibrator* calibrator = nullptr);
 
 inline int64_t volume(const nvinfer1::Dims& d)
 {
