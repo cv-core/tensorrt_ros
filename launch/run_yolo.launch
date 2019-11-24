@@ -1,6 +1,6 @@
 <launch>
-  <arg name="camera1_topic" default="/pointgrey/image_rect_color_scaled" />
-  <arg name="camera2_topic" default="/nerian/left_image" />
+  <arg name="camera1_topic" default="/camera1/image_raw" />
+  <arg name="camera2_topic" default="/camera2/image_raw" />
   <arg name="car" default="dut18d" />
   <node pkg="tensorrt_ros" type="tensorrt_ros" name="tensorrt_node" output="screen" >
     <param name="calib_path" value="launch/calib_imgs" />
