@@ -5,19 +5,19 @@ recommended to use NVIDIA Driver 410 to build CUDA with TensorRT version
 
 ##Installation Instructions:
 
-###CUDA:
+### CUDA:
 CUDA is an NVIDIA GPU programming language, with installation instructions
 that can be found on NVIDIA's website at:
 https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
 
-###TensorRT:
+### TensorRT:
 TensorRT is a CUDA-based deep learning inference platform optimized for NVIDIA
 GPU's, used to run cone detections and keypoint detections on the MIT/DUT18D
 car. TensorRT installation instructions can also be found on NVIDIA's website
 at:
 https://docs.nvidia.com/deeplearning/sdk/tensorrt-install-guide/index.html
 
-###OpenCV:
+### OpenCV:
 OpenCV is an open-source computer vision library, used in this repository
 for processing images and storing basic image-related data structures.
 OpenCV 3.4 can be installed by running the following commands:
