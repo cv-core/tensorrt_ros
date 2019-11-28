@@ -3,7 +3,7 @@ dependencies on CUDA10, TensorRT, and OpenCV 3.4. For best results, it is
 recommended to use NVIDIA Driver 410 to build CUDA with TensorRT version
 5.0.2.6, as these are the versions used on the MIT/DUT18D car.
 
-##Installation Instructions:
+## Installation Instructions:
 
 ### CUDA:
 CUDA is an NVIDIA GPU programming language, with installation instructions
